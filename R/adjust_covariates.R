@@ -233,8 +233,8 @@ mf_residualize_wavelet_eb <- function(Y, Z, X = NULL,
   lev_res <- log2(T_pad)
   indx_lst <- gen_wavelet_indx(lev_res)
 
-  # Low-count columns excluded from fitting and prior learning (matching
-  # fsusieR EBmvFR behaviour: prior_groups excludes lowc_wc).
+  # Low-count columns excluded from fitting and prior learning; see
+  # inst/notes/refactor-exceptions.md (wavelet_eb provenance).
   lowc_idx <- mf_low_count_indices(Y_wd, threshold = wavelet_magnitude_cutoff)
   active_per_scale <- lapply(indx_lst, function(idx_s) {
     if (length(lowc_idx) > 0L) setdiff(idx_s, lowc_idx) else idx_s
@@ -292,8 +292,8 @@ mf_residualize_wavelet_eb <- function(Y, Z, X = NULL,
       }
     }
 
-    # 5b: residual variance on active columns only (matches fsusieR
-    # EBmvFR: estimate_residual_variance uses active_wc).
+    # 5b: residual variance on active columns only (low-count columns
+    # excluded from variance estimation; see refactor-exceptions.md).
     active_all <- unlist(active_per_scale)
     if (length(active_all)) {
       resid_act <- Y_wd[, active_all, drop = FALSE] -
@@ -357,7 +357,7 @@ mf_residualize_wavelet_eb <- function(Y, Z, X = NULL,
 
 # Internal: compute posterior moments and mixture-component responsibilities
 # for one covariate at one wavelet scale, under a zero-centred normal mixture
-# prior. Implements the same computation as fsusieR's `.ebmvfr_normal_means`.
+# prior. Exact EM responsibility update; provenance in refactor-exceptions.md.
 #
 # Returns a list with:
 #   mean   -- posterior mean, length |bhat|

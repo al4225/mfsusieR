@@ -42,7 +42,11 @@ mfsusie(
   alpha_thin_eps = 5e-05,
   model_init = NULL,
   small_sample_correction = FALSE,
+  cross_iter_prior = TRUE,
   max_inner_em_steps = 5L,
+  min_bins_per_ebnm_group = 1L,
+  ebnm_null_prior_weight = NULL,
+  cs_min_lead_pip = 0,
   attach_smoothing_inputs = TRUE,
   save_mu_method = c("complete", "aggregated", "lead")
 )
@@ -245,6 +249,17 @@ per-variable BF, inflating PIPs at null variants. The
 correction acts on variable selection probabilities only;
 posterior moments given inclusion are unchanged. Default
 \code{FALSE}.}
+
+\item{cross_iter_prior}{logical. When \code{TRUE} (default), the fitted
+mixture weights \code{pi} for each effect \code{l} are stored after each
+SER step and reloaded as the starting point for the same effect
+in the next outer IBSS iteration (per-effect warm-start of the
+prior). When \code{FALSE}, each SER step starts from the shared
+initial prior regardless of previous iterations, which is closer
+to the IBSS theoretical derivation (shared prior across effects).
+Setting \code{FALSE} may reduce FDR inflation in high-resolution
+wavelet fits where per-effect prior persistence can overfit to
+cross-scale covariance structure in the data.}
 
 \item{max_inner_em_steps}{integer, number of M-step + alpha-update
 sweeps run inside the post-loglik prior hook per (effect,

@@ -21,7 +21,10 @@ mf_adjust_for_covariates(
 }
 \arguments{
 \item{Y}{\verb{n x T} numeric matrix; the functional response. \code{T}
-must be a power of two for \code{method = "wavelet_eb"}.}
+must be a power of two for \code{method = "wavelet_eb"}. With
+\code{method = "ols"}, rows with any missing value in \code{Y}, \code{Z} (or
+\code{X}) are left out of the fit and returned as \code{NA}; the
+\code{"wavelet_eb"} method requires complete data.}
 
 \item{Z}{\verb{n x K} numeric matrix; covariates to adjust away.}
 
@@ -45,11 +48,10 @@ wavelet-EB path. Default \code{50}.}
 prior weights \verb{||pi - pi_prev|| / log(K) < tol}.
 Default \code{1e-3}.}
 
-\item{init_pi0_w}{numeric, starting null-component mass for
-mixsqp. Default \code{1}.}
-
-\item{control_mixsqp}{optional named list of \code{mixsqp} control
-args. Default \code{list(verbose = FALSE, eps = 1e-6, numiter.em = 4L)}.}
+\item{init_pi0_w, control_mixsqp}{Legacy optimizer arguments
+retained for call compatibility. The wavelet-EB path now uses
+an exact responsibility M-step (Kim et al.) instead of mixsqp,
+so these arguments have no effect.}
 
 \item{grid_mult}{numeric, multiplier for the ash mixture grid.
 Default \code{sqrt(2)}.}
