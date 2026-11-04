@@ -78,8 +78,8 @@ and genotype signal. `genetic_signal` is the part we want to
 recover; `covariate_signal` is the part we want to remove.
 
 ```{r sim-data}
-data(N3finemapping)
-Geno <- N3finemapping$X[, seq_len(100)]
+data(multiomic_example)
+Geno <- multiomic_example$X[, seq_len(100)]
 n    <- nrow(Geno)
 
 # Three covariates, sd = 2; independent of Geno.
@@ -281,6 +281,92 @@ For `T > 1` use `method = "wavelet_eb"` (the default
 demonstrated above). Use `method = "ols"` for scalar traits or
 when smooth covariate effects across positions are not
 expected.
+
+## Two-step adjustment for multi-cell-type analysis
+
+In multi-cell-type (CT) functional fine-mapping, covariates split
+into two groups:
+
+- **Shared covariates** (e.g. age, sex, PMI, genotype PCs): common
+  across all CTs. Remove from **both the genotype matrix X and every
+  phenotype Y_m** using OLS/FWL so the residualized X is the same
+  for all CTs.
+- **CT-specific covariates** (e.g. hidden factors estimated per CT):
+  differ across CTs. Remove from **each Y_m separately** using
+  `method = "wavelet_eb"` to allow smooth position-dependent effects.
+
+The two steps compose: apply shared adjustment first (OLS), then
+CT-specific adjustment (wavelet_eb) on the residuals.
+
+```{r two-step-setup}
+# Simulate two cell types with shared + CT-specific covariates.
+n_ct  <- 2L
+# Shared covariates (3 columns): same design matrix for all CTs.
+Z_shared <- matrix(rnorm(n * 3L), n, 3L)
+
+# CT-specific hidden factors (2 per CT), independent of Z_shared.
+H <- lapply(seq_len(n_ct), function(m) matrix(rnorm(n * 2L), n, 2L))
+
+# CT-specific functional effects (additive to genetic signal).
+f_ct1 <- mf_simu_ibss_per_level(lev_res)$sim_func
+f_ct2 <- mf_simu_ibss_per_level(lev_res)$sim_func
+
+# Build Y for each CT: genetic + shared covariate + CT-specific signal.
+Y_ct <- lapply(seq_len(n_ct), function(m) {
+  f_ct <- if (m == 1L) f_ct1 else f_ct2
+  shared_effect  <- Z_shared %*% matrix(rnorm(3L * T_m), 3L, T_m)
+  ct_effect      <- H[[m]] %*% matrix(rnorm(2L * T_m), 2L, T_m)
+  genetic_signal + shared_effect + ct_effect
+})
+```
+
+**Step 1 — remove shared covariates from X and every Y_m (OLS/FWL):**
+
+```{r two-step-step1}
+# Adjust X once; reuse X_adj across all CTs.
+adj_shared <- mf_adjust_for_covariates(Y_ct[[1L]], Z_shared,
+                                        X      = Geno,
+                                        method = "ols")
+X_adj <- adj_shared$X_adjusted          # n x p; shared across CTs
+
+Y_step1 <- lapply(seq_len(n_ct), function(m) {
+  if (m == 1L) return(adj_shared$Y_adjusted)   # already computed above
+  mf_adjust_for_covariates(Y_ct[[m]], Z_shared,
+                            method = "ols")$Y_adjusted
+})
+```
+
+**Step 2 — remove CT-specific covariates from each Y_m (wavelet_eb):**
+
+```{r two-step-step2}
+Y_adj <- lapply(seq_len(n_ct), function(m) {
+  mf_adjust_for_covariates(Y_step1[[m]], H[[m]],
+                            method = "wavelet_eb")$Y_adjusted
+})
+```
+
+**Step 3 — pass to `mfsusie()` with the adjusted inputs:**
+
+```{r two-step-fit, message = FALSE}
+# wavelet_qnorm = FALSE: quantile normalization was not applied;
+# set to TRUE only if raw Y was quantile-normalised before this pipeline.
+fit_two_step <- mfsusie(X = X_adj, Y = Y_adj,
+                         wavelet_qnorm = FALSE, verbose = FALSE)
+fit_two_step$sets$cs
+```
+
+A few things to check in a real analysis:
+
+- **Donor alignment**: donor rows in `Z_shared`, `H[[m]]`, `Geno`,
+  and `Y_ct[[m]]` must correspond to the same individuals.
+- **Missing rows**: the OLS path silently excludes rows with any `NA`;
+  confirm the resulting row count before passing to step 2.
+- **Intercept**: if `Z_shared` already contains an intercept column,
+  `mfsusie(intercept = TRUE)` will re-centre X — this is harmless
+  but adds a near-zero shift; set `intercept = FALSE` if you want
+  to skip it.
+- **No double adjustment**: do not pass `Z_shared` or `H[[m]]` to
+  `mfsusie()` again after this pre-processing step.
 
 ## Next steps
 
